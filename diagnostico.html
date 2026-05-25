@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Diagnóstico AR</title>
+<style>
+body{background:#111;color:#fff;font-family:monospace;padding:20px;font-size:13px;}
+h2{color:#00E5FF;margin-bottom:16px;}
+.item{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);}
+.ok{color:#4ade80;}
+.err{color:#E00000;}
+.warn{color:#f59e0b;}
+.tag{min-width:24px;font-size:16px;}
+.label{flex:1;}
+.sub{font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;}
+#cam-btn{background:#E00000;color:#fff;border:none;padding:12px 24px;border-radius:8px;font-size:14px;cursor:pointer;margin-top:16px;width:100%;}
+#cam-result{margin-top:12px;padding:10px;background:rgba(255,255,255,0.05);border-radius:6px;display:none;}
+</style>
+</head>
+<body>
+<h2>🔍 Diagnóstico AR — Honda WR-V</h2>
+<div id="checks"></div>
+<button id="cam-btn" onclick="testCamera()">Testar câmera agora</button>
+<div id="cam-result"></div>
+
+<script>
+const checks = document.getElementById('checks');
+
+function addCheck(icon, label, sub, cls) {
+  const el = document.createElement('div');
+  el.className = 'item';
+  el.innerHTML = `<div class="tag">${icon}</div><div class="label"><div class="${cls}">${label}</div><div class="sub">${sub}</div></div>`;
+  checks.appendChild(el);
+}
+
+// 1. HTTPS
+const isHttps = location.protocol === 'https:';
+addCheck(
+  isHttps ? '✅' : '❌',
+  isHttps ? 'HTTPS OK' : 'SEM HTTPS — câmera bloqueada!',
+  location.href,
+  isHttps ? 'ok' : 'err'
+);
+
+// 2. Browser
+const ua = navigator.userAgent;
+const isIOS = /iPad|iPhone|iPod/.test(ua);
+const isSafari = /Safari/.test(ua) && !/Chrome/.test(ua);
+const isChrome = /Chrome/.test(ua) && /Android/.test(ua);
+let browserOk = false;
+let browserMsg = '';
+if (isIOS && isSafari) { browserOk = true; browserMsg = 'Safari iOS — OK'; }
+else if (isIOS && !isSafari) { browserOk = false; browserMsg = 'iOS detectado mas NÃO é Safari — use Safari!'; }
+else if (isChrome) { browserOk = true; browserMsg = 'Chrome Android — OK'; }
+else { browserOk = true; browserMsg = 'Navegador: ' + ua.slice(0,60); }
+
+addCheck(
+  browserOk ? '✅' : '❌',
+  browserOk ? 'Navegador compatível' : 'Navegador INCOMPATÍVEL',
+  browserMsg,
+  browserOk ? 'ok' : 'err'
+);
+
+// 3. mediaDevices
+const hasMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+addCheck(
+  hasMedia ? '✅' : '❌',
+  hasMedia ? 'API de câmera disponível' : 'API de câmera NÃO disponível',
+  hasMedia ? 'getUserMedia suportado' : 'Navegador não suporta câmera via API',
+  hasMedia ? 'ok' : 'err'
+);
+
+// 4. WebGL
+let hasWebGL = false;
+try {
+  const c = document.createElement('canvas');
+  hasWebGL = !!(c.getContext('webgl') || c.getContext('webgl2') || c.getContext('experimental-webgl'));
+} catch(e) {}
+addCheck(
+  hasWebGL ? '✅' : '❌',
+  hasWebGL ? 'WebGL disponível' : 'WebGL NÃO disponível — AR impossível',
+  hasWebGL ? 'Renderização 3D OK' : 'Ative WebGL nas configurações do navegador',
+  hasWebGL ? 'ok' : 'err'
+);
+
+// 5. targets.mind
+fetch('assets/targets.mind', {method:'HEAD'})
+  .then(r => {
+    addCheck(
+      r.ok ? '✅' : '❌',
+      r.ok ? 'targets.mind encontrado' : 'targets.mind NÃO encontrado (404)',
+      r.ok ? `Status ${r.status} — arquivo OK` : 'Suba o arquivo em assets/targets.mind',
+      r.ok ? 'ok' : 'err'
+    );
+  })
+  .catch(() => {
+    addCheck('⚠️', 'targets.mind — erro ao verificar', 'Pode estar ausente ou CORS bloqueando', 'warn');
+  });
+
+// 6. index.html
+fetch('index.html', {method:'HEAD'})
+  .then(r => {
+    addCheck('✅', 'index.html OK', `Status ${r.status}`, 'ok');
+  }).catch(() => {
+    addCheck('⚠️', 'index.html — não verificado', '', 'warn');
+  });
+
+// Teste câmera
+function testCamera() {
+  const result = document.getElementById('cam-result');
+  result.style.display = 'block';
+  result.textContent = 'Solicitando câmera...';
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(stream => {
+      stream.getTracks().forEach(t => t.stop());
+      result.style.color = '#4ade80';
+      result.textContent = '✅ Câmera autorizada e funcionando! O problema está em outro lugar.';
+      addCheck('✅', 'Câmera autorizada com sucesso', 'Permissão concedida pelo usuário', 'ok');
+    })
+    .catch(err => {
+      result.style.color = '#E00000';
+      result.textContent = '❌ Erro: ' + err.name + ' — ' + err.message;
+      addCheck('❌', 'Câmera bloqueada: ' + err.name, err.message, 'err');
+    });
+}
+</script>
+</body>
+</html>
