@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>Honda WR-V — AR</title>
+<script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;700&family=Barlow+Condensed:wght@700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; font-family: 'Barlow', sans-serif; }
+
+/* SPLASH */
+#splash {
+  position: fixed; inset: 0; z-index: 100;
+  background: #080C14;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+  transition: opacity 0.5s;
+}
+#splash.hidden { opacity: 0; pointer-events: none; }
+.sp-h { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 44px; color: #E00000; letter-spacing: 2px; }
+.sp-m { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; color: rgba(255,255,255,0.3); letter-spacing: 8px; margin-top: -10px; }
+.sp-line { width: 40px; height: 2px; background: #E00000; }
+.sp-t { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 26px; color: #fff; text-align: center; text-transform: uppercase; line-height: 1.1; }
+.sp-t em { color: #00E5FF; font-style: normal; }
+.sp-d { font-size: 12px; color: rgba(255,255,255,0.3); text-align: center; max-width: 240px; line-height: 1.6; }
+#btn { background: #E00000; color: #fff; border: none; padding: 14px 44px; font-size: 15px; font-weight: 700; border-radius: 40px; cursor: pointer; }
+
+/* AR SCENE — idêntico ao teste que funcionou */
+#ar-scene { display: none; position: fixed; inset: 0; width: 100%; height: 100%; }
+#ar-scene.active { display: block; }
+
+/* HUD */
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; display: none; }
+#hud.active { display: block; }
+.hc { position: absolute; width: 20px; height: 20px; }
+.hc::before, .hc::after { content: ''; position: absolute; background: rgba(0,229,255,0.5); }
+.hc::before { width: 1.5px; height: 100%; }
+.hc::after { width: 100%; height: 1.5px; }
+.tl { top: 16px; left: 16px; } .tr { top: 16px; right: 16px; transform: scaleX(-1); }
+.bl { bottom: 16px; left: 16px; transform: scaleY(-1); } .br { bottom: 16px; right: 16px; transform: scale(-1); }
+
+#status { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); border-radius: 20px; display: flex; align-items: center; gap: 7px; padding: 6px 16px; white-space: nowrap; }
+.sd { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.25); }
+.sd.on { background: #00E5FF; animation: blink 1.2s infinite; }
+#st { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: rgba(255,255,255,0.4); letter-spacing: 1.5px; text-transform: uppercase; }
+#st.on { color: #00E5FF; }
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+/* MODE BAR — sempre visível com HUD */
+#mbar {
+  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 2px;
+  background: rgba(0,0,0,0.75); border-radius: 30px; padding: 4px;
+  pointer-events: auto;
+}
+.mb { padding: 9px 16px; border-radius: 26px; border: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; color: rgba(255,255,255,0.4); background: transparent; }
+.mb.on { background: #E00000; color: #fff; }
+
+/* CTA */
+#cta { position: absolute; top: 60px; left: 0; right: 0; display: flex; justify-content: center; pointer-events: auto; opacity: 0; transition: opacity 0.5s; }
+#cta.on { opacity: 1; }
+#cta a { display: flex; align-items: center; gap: 10px; background: #E00000; color: #fff; text-decoration: none; border-radius: 30px; padding: 10px 20px 10px 16px; box-shadow: 0 4px 20px rgba(224,0,0,0.4); }
+.ci { width: 28px; height: 28px; background: rgba(255,255,255,0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.cl { font-size: 8px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.7; font-family: 'Share Tech Mono', monospace; }
+.cm { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 14px; line-height: 1; }
+
+/* CALLOUTS */
+.cp {
+  position: absolute;
+  background: rgba(6,10,20,0.95); border: 1px solid rgba(0,229,255,0.3); border-radius: 6px;
+  padding: 13px 15px 15px; width: 185px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s, transform 0.3s; transform: scale(0.9);
+  backdrop-filter: blur(20px);
+}
+.cp::before { content: ''; position: absolute; top: 0; left: 14px; width: 36px; height: 1.5px; background: #00E5FF; }
+.cp.on { opacity: 1; pointer-events: auto; transform: scale(1); }
+.cp.gold { border-color: rgba(255,165,0,0.3); } .cp.gold::before { background: #FFA500; }
+.cpn { font-family: 'Share Tech Mono', monospace; font-size: 7px; color: #00E5FF; letter-spacing: 3px; opacity: 0.6; margin-bottom: 3px; }
+.cpn.g { color: #FFA500; }
+.cpt { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 18px; text-transform: uppercase; color: #fff; line-height: 1; margin-bottom: 8px; }
+.cps { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: #00E5FF; padding: 3px 8px; background: rgba(0,229,255,0.07); border-left: 1.5px solid #00E5FF; margin-bottom: 9px; }
+.cps.g { color: #FFA500; background: rgba(255,165,0,0.07); border-color: #FFA500; }
+.cpl { display: flex; flex-direction: column; gap: 5px; }
+.cpi { display: flex; gap: 5px; font-size: 10px; color: rgba(255,255,255,0.6); line-height: 1.4; }
+.cpi::before { content: '›'; color: #00E5FF; font-size: 12px; flex-shrink: 0; }
+.cpi.g::before { color: #FFA500; }
+.cpx { position: absolute; top: 8px; right: 8px; width: 18px; height: 18px; border: none; background: rgba(255,255,255,0.07); border-radius: 50%; color: rgba(255,255,255,0.4); font-size: 12px; cursor: pointer; pointer-events: auto; }
+
+/* SPECS */
+#spd {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: #0D1220; border-top: 1px solid rgba(255,255,255,0.08);
+  transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.2,0.8,0.2,1);
+  max-height: 70%; display: flex; flex-direction: column; pointer-events: auto;
+}
+#spd.on { transform: translateY(0); }
+.sh { width: 32px; height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; margin: 10px auto 6px; cursor: pointer; }
+.shd { display: flex; align-items: center; justify-content: space-between; padding: 0 20px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.sht { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 20px; text-transform: uppercase; }
+.shx { background: none; border: none; color: rgba(255,255,255,0.3); font-size: 20px; cursor: pointer; }
+.sb { overflow-y: auto; padding: 10px 16px 20px; }
+.sg { margin-bottom: 10px; }
+.sgh { font-family: 'Share Tech Mono', monospace; font-size: 7.5px; color: #00E5FF; letter-spacing: 2px; text-transform: uppercase; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 4px; }
+.sgr { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.sgk { font-size: 11px; color: rgba(255,255,255,0.35); }
+.sgv { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 13px; color: #fff; }
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div style="text-align:center;"><div class="sp-h">HONDA</div><div class="sp-m">WR-V</div></div>
+  <div class="sp-line"></div>
+  <div class="sp-t">Immersive<br><em>Catalog AR</em></div>
+  <div class="sp-d">Aponte para a capa do catálogo WR-V impresso</div>
+  <button id="btn" onclick="startAR()">Abrir câmera</button>
+</div>
+
+<!-- AR SCENE — usando mesmo plano simples que funcionou -->
+<a-scene id="ar-scene"
+  mindar-image="imageTargetSrc: assets/targets.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no"
+  color-space="sRGB"
+  renderer="colorManagement: true"
+  vr-mode-ui="enabled: false"
+  device-orientation-permission-ui="enabled: false">
+  <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+  <a-entity id="target" mindar-image-target="targetIndex: 0">
+    <!-- EXTERIOR — 5 planos simples, sem animação -->
+    <a-entity id="ext" visible="true">
+      <a-plane color="#00E5FF" position="-0.30 0.10 0.01" width="0.06" height="0.06" material="opacity:0.7;transparent:true"></a-plane>
+      <a-plane color="#00E5FF" position="-0.12 -0.02 0.01" width="0.06" height="0.06" material="opacity:0.7;transparent:true"></a-plane>
+      <a-plane color="#00E5FF" position="0.06 -0.22 0.01" width="0.06" height="0.06" material="opacity:0.7;transparent:true"></a-plane>
+      <a-plane color="#E00000" position="0.18 0.26 0.01" width="0.06" height="0.06" material="opacity:0.7;transparent:true"></a-plane>
+      <a-plane color="#00E5FF" position="0.44 0.06 0.01" width="0.06" height="0.06" material="opacity:0.7;transparent:true"></a-plane>
+    </a-entity>
+    <!-- XRAY — 4 planos -->
+    <a-entity id="xray" visible="false">
+      <a-plane color="#FFA500" position="-0.18 0.06 0.01" width="0.06" height="0.06" material="opacity:0.7;transparent:true"></a-plane>
+      <a-plane color="#FFA500" position="-0.24 -0.18 0.01" width="0.06" height="0.06" material="opacity:0.7;transparent:true"></a-plane>
+      <a-plane color="#00E5FF" position="0.04 -0.02 0.01" width="0.06" height="0.06" material="opacity:0.7;transparent:true"></a-plane>
+      <a-plane color="#FFA500" position="0.30 -0.18 0.01" width="0.06" height="0.06" material="opacity:0.7;transparent:true"></a-plane>
+    </a-entity>
+    <!-- INTERIOR — 4 planos -->
+    <a-entity id="intr" visible="false">
+      <a-plane color="#00E5FF" position="0.08 0.06 0.01" width="0.05" height="0.05" material="opacity:0.7;transparent:true"></a-plane>
+      <a-plane color="#00E5FF" position="-0.16 0.08 0.01" width="0.05" height="0.05" material="opacity:0.7;transparent:true"></a-plane>
+      <a-plane color="#00E5FF" position="0.06 -0.10 0.01" width="0.05" height="0.05" material="opacity:0.7;transparent:true"></a-plane>
+      <a-plane color="#00E5FF" position="0.24 0.04 0.01" width="0.05" height="0.05" material="opacity:0.7;transparent:true"></a-plane>
+    </a-entity>
+  </a-entity>
+</a-scene>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hc tl"></div><div class="hc tr"></div><div class="hc bl"></div><div class="hc br"></div>
+  <div id="status"><div class="sd" id="sd"></div><div id="st">Procurando catálogo...</div></div>
+
+  <!-- CTA -->
+  <div id="cta">
+    <a href="https://www.honda.com.br/automoveis/wrv" target="_blank">
+      <div class="ci"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+      <div><div class="cl">Saiba mais em</div><div class="cm">honda.com.br/wrv</div></div>
+    </a>
+  </div>
+
+  <!-- CALLOUTS EXT -->
+  <div class="cp" id="cp1" style="left:4%;top:25%;"><button class="cpx" onclick="closeAll()">×</button><div class="cpn">01 · ILUMINAÇÃO</div><div class="cpt">Faróis Full LED</div><div class="cps">DRL + SENSOR AUTO</div><div class="cpl"><div class="cpi">Luzes de rodagem em LED</div><div class="cpi">Acendimento automático</div><div class="cpi">Neblina LED (EXL)</div></div></div>
+  <div class="cp" id="cp2" style="left:4%;top:50%;"><button class="cpx" onclick="closeAll()">×</button><div class="cpn">02 · MOTORIZAÇÃO</div><div class="cpt">Motor 1.5L</div><div class="cps">126 CV · CVT · FLEX</div><div class="cpl"><div class="cpi">Injeção direta flex</div><div class="cpi">CVT Paddle Shift 7M</div><div class="cpi">15,8 kgfm @ 4600 rpm</div></div></div>
+  <div class="cp" id="cp3" style="right:4%;bottom:25%;"><button class="cpx" onclick="closeAll()">×</button><div class="cpn">03 · DESIGN</div><div class="cpt">Rodas Liga 17"</div><div class="cps">215/55R17 94V</div><div class="cpl"><div class="cpi">5 raios duplos</div><div class="cpi">Alta performance</div></div></div>
+  <div class="cp" id="cp4" style="right:4%;top:25%;"><button class="cpx" onclick="closeAll()">×</button><div class="cpn">04 · SEGURANÇA</div><div class="cpt">Honda SENSING®</div><div class="cps">5 SISTEMAS DE SÉRIE</div><div class="cpl"><div class="cpi">ACC™ — Cruzeiro adapt.</div><div class="cpi">CMBS™ — Frenagem auto</div><div class="cpi">LKAS™ — Faixa</div></div></div>
+  <div class="cp" id="cp5" style="right:4%;top:50%;"><button class="cpx" onclick="closeAll()">×</button><div class="cpn">05 · TRASEIRA</div><div class="cpt">Lanternas LED</div><div class="cps">LED + TUBARÃO</div><div class="cpl"><div class="cpi">Lanternas full LED</div><div class="cpi">Antena tubarão</div></div></div>
+
+  <!-- CALLOUTS XRAY -->
+  <div class="cp gold" id="xcp1" style="left:4%;top:25%;"><button class="cpx" onclick="closeAll()">×</button><div class="cpn g">MOTOR</div><div class="cpt">1.5L DI i-VTEC</div><div class="cps g">126 CV · FLEX</div><div class="cpl"><div class="cpi g">Injeção direta</div><div class="cpi g">15,8 kgfm</div></div></div>
+  <div class="cp gold" id="xcp2" style="left:4%;bottom:25%;"><button class="cpx" onclick="closeAll()">×</button><div class="cpn g">SUSPENSÃO DIANT.</div><div class="cpt">MacPherson</div><div class="cps g">MOLAS REFORÇADAS</div><div class="cpl"><div class="cpi g">Absorção precisa</div></div></div>
+  <div class="cp" id="xcp3" style="right:4%;top:25%;"><button class="cpx" onclick="closeAll()">×</button><div class="cpn">TRANSMISSÃO</div><div class="cpt">CVT</div><div class="cps">PADDLE SHIFT 7M</div><div class="cpl"><div class="cpi">Mudanças suaves</div></div></div>
+  <div class="cp gold" id="xcp4" style="right:4%;bottom:25%;"><button class="cpx" onclick="closeAll()">×</button><div class="cpn g">SUSPENSÃO TRAS.</div><div class="cpt">Barra Torção</div><div class="cps g">SOLO: 223mm</div><div class="cpl"><div class="cpi g">223mm altura livre</div></div></div>
+
+  <!-- CALLOUTS INT -->
+  <div class="cp" id="icp1" style="right:4%;top:25%;"><button class="cpx" onclick="closeAll()">×</button><div class="cpn">MULTIMÍDIA</div><div class="cpt">Central 10"</div><div class="cps">CARPLAY · ANDROID AUTO</div><div class="cpl"><div class="cpi">Conexão sem fio</div></div></div>
+  <div class="cp" id="icp2" style="left:4%;top:25%;"><button class="cpx" onclick="closeAll()">×</button><div class="cpn">INSTRUMENTOS</div><div class="cpt">Painel 7" TFT</div><div class="cps">ALTA DEFINIÇÃO</div><div class="cpl"><div class="cpi">Leitura clara</div></div></div>
+  <div class="cp" id="icp3" style="left:4%;bottom:25%;"><button class="cpx" onclick="closeAll()">×</button><div class="cpn">CARREGADOR</div><div class="cpt">Por Indução</div><div class="cps">WIRELESS (EXL)</div><div class="cpl"><div class="cpi">Sem fios</div></div></div>
+  <div class="cp" id="icp4" style="right:4%;bottom:25%;"><button class="cpx" onclick="closeAll()">×</button><div class="cpn">CLIMATIZAÇÃO</div><div class="cpt">Ar Digital</div><div class="cps">SAÍDAS TRASEIRAS</div><div class="cpl"><div class="cpi">Ajuste automático</div></div></div>
+
+  <!-- SPECS DRAWER -->
+  <div id="spd">
+    <div class="sh" onclick="closeSpecs()"></div>
+    <div class="shd"><div class="sht">WR-V — Specs</div><button class="shx" onclick="closeSpecs()">×</button></div>
+    <div class="sb">
+      <div class="sg"><div class="sgh">Motor</div>
+        <div class="sgr"><div class="sgk">Motor</div><div class="sgv">1.5L i-VTEC Flex</div></div>
+        <div class="sgr"><div class="sgk">Potência</div><div class="sgv">126 cv @ 6200 rpm</div></div>
+        <div class="sgr"><div class="sgk">Torque</div><div class="sgv">15,8 kgfm @ 4600 rpm</div></div>
+        <div class="sgr"><div class="sgk">Câmbio</div><div class="sgv">CVT + Paddle Shift</div></div>
+      </div>
+      <div class="sg"><div class="sgh">Dimensões</div>
+        <div class="sgr"><div class="sgk">Comprimento</div><div class="sgv">4.325 mm</div></div>
+        <div class="sgr"><div class="sgk">Porta-malas</div><div class="sgv">458 litros</div></div>
+        <div class="sgr"><div class="sgk">Solo livre</div><div class="sgv">223 mm</div></div>
+      </div>
+      <div class="sg"><div class="sgh">Segurança</div>
+        <div class="sgr"><div class="sgk">Honda SENSING®</div><div class="sgv">De série</div></div>
+        <div class="sgr"><div class="sgk">Airbags</div><div class="sgv">6 de série</div></div>
+      </div>
+      <div class="sg"><div class="sgh">Tecnologia</div>
+        <div class="sgr"><div class="sgk">Multimídia</div><div class="sgv">10" sem fio</div></div>
+        <div class="sgr"><div class="sgk">Garantia</div><div class="sgv">6 anos</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODE BAR -->
+  <div id="mbar">
+    <button class="mb on" onclick="setMode('ext',this)">Exterior</button>
+    <button class="mb" onclick="setMode('xray',this)">X-Ray</button>
+    <button class="mb" onclick="setMode('int',this)">Interior</button>
+    <button class="mb" onclick="openSpecs(this)">Specs</button>
+  </div>
+</div>
+
+<script>
+let mode = 'ext';
+let ctaDone = false;
+let ctaT = null;
+
+// Mapeamento dos hotspots para abrir callouts ao tocar nos planos coloridos
+// Como A-Frame clicks são problemáticos no iOS, usamos overlay invisível com touch
+// Para esta versão inicial: clique nos botões abre o painel correspondente automaticamente em cascata
+
+function startAR() {
+  const scene = document.getElementById('ar-scene');
+  scene.classList.add('active');
+  document.getElementById('splash').classList.add('hidden');
+  document.getElementById('hud').classList.add('active');
+
+  scene.addEventListener('loaded', () => {
+    const sys = scene.systems['mindar-image-system'];
+    if (sys) sys.start();
+  }, { once: true });
+
+  setTimeout(() => {
+    const sys = scene.systems['mindar-image-system'];
+    if (sys && !sys.started) sys.start();
+  }, 1500);
+
+  document.getElementById('target').addEventListener('targetFound', () => {
+    document.getElementById('sd').classList.add('on');
+    document.getElementById('st').classList.add('on');
+    document.getElementById('st').textContent = '● WR-V Reconhecido';
+    if (!ctaDone) {
+      ctaT = setTimeout(() => {
+        document.getElementById('cta').classList.add('on');
+        ctaDone = true;
+      }, 3000);
+    }
+  });
+
+  document.getElementById('target').addEventListener('targetLost', () => {
+    document.getElementById('sd').classList.remove('on');
+    document.getElementById('st').classList.remove('on');
+    document.getElementById('st').textContent = 'Procurando catálogo...';
+    clearTimeout(ctaT);
+    closeAll();
+  });
+}
+
+function setMode(m, btn) {
+  mode = m;
+  closeAll();
+  document.querySelectorAll('.mb').forEach(b => b.classList.remove('on'));
+  if (btn) btn.classList.add('on');
+  document.getElementById('ext').setAttribute('visible', m === 'ext');
+  document.getElementById('xray').setAttribute('visible', m === 'xray');
+  document.getElementById('intr').setAttribute('visible', m === 'int');
+
+  // Auto-abre o primeiro callout do modo selecionado
+  setTimeout(() => {
+    if (m === 'ext') openPanel('cp1');
+    else if (m === 'xray') openPanel('xcp1');
+    else if (m === 'int') openPanel('icp1');
+  }, 200);
+}
+
+function openPanel(id) {
+  closeAll();
+  const el = document.getElementById(id);
+  if (el) el.classList.add('on');
+}
+
+function closeAll() {
+  document.querySelectorAll('.cp').forEach(e => e.classList.remove('on'));
+}
+
+function openSpecs(btn) {
+  document.querySelectorAll('.mb').forEach(b => b.classList.remove('on'));
+  if (btn) btn.classList.add('on');
+  document.getElementById('spd').classList.add('on');
+}
+
+function closeSpecs() {
+  document.getElementById('spd').classList.remove('on');
+  document.querySelectorAll('.mb')[0].classList.add('on');
+}
+</script>
+</body>
+</html>
